@@ -62,9 +62,12 @@ constexpr CTRE_FORCE_INLINE R evaluate(const Iterator begin, Iterator current, c
 
 template <typename R, typename Iterator, typename EndIterator, typename CharacterLike, typename... Tail, typename = std::enable_if_t<(MatchesCharacter<CharacterLike>::template value<decltype(*std::declval<Iterator>())>)>> 
 constexpr CTRE_FORCE_INLINE R evaluate(const Iterator begin, Iterator current, const EndIterator end, R captures, ctll::list<CharacterLike, Tail...>) noexcept {
-	if (end == current) return not_matched;
-	if (!CharacterLike::match_char(*current)) return not_matched;
-	return evaluate(begin, current+1, end, captures, ctll::list<Tail...>());
+	if (end == current) return partial_ordering::less;
+	if (auto ord = CharacterLike::compare_char(*current); ord == partial_ordering::equal) {
+		return evaluate(begin, current+1, end, captures, ctll::list<Tail...>());
+	} else {
+		return ord;
+	}
 }
 
 // matching strings in patterns

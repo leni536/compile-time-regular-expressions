@@ -2,7 +2,7 @@
 
 default: all
 	
-TARGETS := result.cpp test.cpp $(wildcard tests/benchmark-exec/*.cpp)
+TARGETS := test_ordering.cpp result.cpp test.cpp $(wildcard tests/benchmark-exec/*.cpp)
 
 DESATOMAT := /www/root/desatomat/console/desatomat.php
 

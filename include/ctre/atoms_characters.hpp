@@ -2,6 +2,7 @@
 #define CTRE__ATOMS_CHARACTERS__HPP
 
 #include "utility.hpp"
+#include "ordering.hpp"
 #include <cstdint>
 
 namespace ctre {
@@ -21,6 +22,11 @@ template <auto V> struct character {
 	template <typename CharT> CTRE_FORCE_INLINE static constexpr bool match_char(CharT value) noexcept {
 		return value == V;
 	}
+	template <typename CharT> CTRE_FORCE_INLINE static constexpr partial_ordering compare_char(CharT value) noexcept {
+		if ( V > value ) return partial_ordering::less;
+		if ( V < value ) return partial_ordering::greater;
+		return partial_ordering::equal;
+	}
 };
 
 struct any {
@@ -36,6 +42,14 @@ template <typename... Content> struct negative_set {
 template <typename... Content> struct set {
 	template <typename CharT> inline static constexpr bool match_char(CharT value) noexcept {
 		return (Content::match_char(value) || ... || false);
+	}
+	template <typename CharT> inline static constexpr partial_ordering compare_char(CharT value) noexcept {
+		if (match_char(value)) return partial_ordering::equal;
+		if (((Content::compare_char(value) == partial_ordering::less) && ... && true))
+			return partial_ordering::less;
+		if (((Content::compare_char(value) == partial_ordering::greater) && ... && true))
+			return partial_ordering::greater;
+		return partial_ordering::unordered;
 	}
 };
 
@@ -101,6 +115,11 @@ struct ascii_chars {
 template <auto A, auto B> struct char_range {
 	template <typename CharT> CTRE_FORCE_INLINE static constexpr bool match_char(CharT value) noexcept {
 		return (value >= A) && (value <= B);
+	}
+	template <typename CharT> CTRE_FORCE_INLINE static constexpr partial_ordering compare_char(CharT value) noexcept {
+		if (value < A) return partial_ordering::less;
+		if (value > B) return partial_ordering::greater;
+		return partial_ordering::equal;
 	}
 };
 template <auto... Cs> struct enumeration {
