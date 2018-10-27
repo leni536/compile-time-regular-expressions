@@ -2,6 +2,7 @@
 #define CTRE__ATOMS_CHARACTERS__HPP
 
 #include "utility.hpp"
+#include "ordering.hpp"
 #include <cstdint>
 
 namespace ctre {
@@ -21,6 +22,11 @@ template <auto V> struct character {
 	template <typename CharT> CTRE_FORCE_INLINE static constexpr bool match_char(CharT value) noexcept {
 		return value == V;
 	}
+	template <typename CharT> CTRE_FORCE_INLINE static constexpr char compare_char(CharT value) noexcept {
+		if (value == V) return (equal | less | greater);
+		if (value < V) return less;
+		return greater;
+	}
 };
 
 struct any {
@@ -36,6 +42,9 @@ template <typename... Content> struct negative_set {
 template <typename... Content> struct set {
 	template <typename CharT> inline static constexpr bool match_char(CharT value) noexcept {
 		return (Content::match_char(value) || ... || false);
+	}
+	template <typename CharT> inline static constexpr char compare_char(CharT value) noexcept {
+		return ((Content::compare_char(value)^(~equal)) | ... | 0)^(~equal);
 	}
 };
 
@@ -101,6 +110,14 @@ struct ascii_chars {
 template <auto A, auto B> struct char_range {
 	template <typename CharT> CTRE_FORCE_INLINE static constexpr bool match_char(CharT value) noexcept {
 		return (value >= A) && (value <= B);
+	}
+	template <typename CharT> CTRE_FORCE_INLINE static constexpr char compare_char(CharT value) noexcept {
+		if (value < A) return less;
+		if (value > B) return greater;
+		char ret = equal;
+		if (value == A) ret |= less;
+		if (value == B) ret |= greater;
+		return ret;
 	}
 };
 template <auto... Cs> struct enumeration {

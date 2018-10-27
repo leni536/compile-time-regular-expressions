@@ -2,6 +2,7 @@
 #define CTRE__EVALUATION__HPP
 
 #include "atoms.hpp"
+#include "ordering.hpp"
 #include "utility.hpp"
 #include "return_type.hpp"
 #include "find_captures.hpp"
@@ -62,8 +63,14 @@ constexpr CTRE_FORCE_INLINE R evaluate(const Iterator begin, Iterator current, c
 
 template <typename R, typename Iterator, typename EndIterator, typename CharacterLike, typename... Tail, typename = std::enable_if_t<(MatchesCharacter<CharacterLike>::template value<decltype(*std::declval<Iterator>())>)>> 
 constexpr CTRE_FORCE_INLINE R evaluate(const Iterator begin, Iterator current, const EndIterator end, R captures, ctll::list<CharacterLike, Tail...>) noexcept {
-	if (end == current) return not_matched;
-	if (!CharacterLike::match_char(*current)) return not_matched;
+	if (end == current) { // target is shorter than pattern
+		return less & char(captures);
+	}
+	auto char_ord = CharacterLike::compare_char(*current);
+	if (!(char_ord & equal)) {
+		return char_ord & char(captures);
+	}
+	captures.mask_ordering(char_ord);
 	return evaluate(begin, current+1, end, captures, ctll::list<Tail...>());
 }
 
@@ -100,17 +107,19 @@ constexpr CTRE_FORCE_INLINE R evaluate(const Iterator begin, Iterator current, c
 // matching select in patterns
 template <typename R, typename Iterator, typename EndIterator, typename HeadOptions, typename... TailOptions, typename... Tail> 
 constexpr CTRE_FORCE_INLINE R evaluate(const Iterator begin, Iterator current, const EndIterator end, R captures, ctll::list<select<HeadOptions, TailOptions...>, Tail...>) noexcept {
-	if (auto r = evaluate(begin, current, end, captures, ctll::list<HeadOptions, Tail...>())) {
-		return r;
+	if (auto first = evaluate(begin, current, end, captures, ctll::list<HeadOptions, Tail...>()); char(first) & equal) {
+		return first;
 	} else {
-		return evaluate(begin, current, end, captures, ctll::list<select<TailOptions...>, Tail...>());
+		auto rest = evaluate(begin, current, end, captures, ctll::list<select<TailOptions...>, Tail...>());
+		if (char(rest) & equal) return rest;
+		return char(first) & char(rest);
 	}
 }
 
 template <typename R, typename Iterator, typename EndIterator, typename... Tail> 
 constexpr CTRE_FORCE_INLINE R evaluate(const Iterator begin, Iterator current, const EndIterator end, R captures, ctll::list<select<>, Tail...>) noexcept {
 	// no previous option was matched => REJECT
-	return not_matched;
+	return char(captures) & ~equal;
 }
 
 // matching optional in patterns
@@ -165,8 +174,8 @@ constexpr CTRE_FORCE_INLINE R evaluate(const Iterator begin, Iterator current, c
 
 template <typename R, typename Iterator, typename EndIterator, typename... Tail> 
 constexpr CTRE_FORCE_INLINE R evaluate(const Iterator begin, Iterator current, const EndIterator end, R captures, ctll::list<assert_end, Tail...>) noexcept {
-	if (end != current) {
-		return not_matched;
+	if (end != current) { //target is longer than pattern
+		return char(captures) & greater;
 	}
 	return evaluate(begin, current, end, captures, ctll::list<Tail...>());
 }

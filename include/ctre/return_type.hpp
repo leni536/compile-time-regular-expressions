@@ -2,25 +2,28 @@
 #define CTRE__RETURN_TYPE__HPP
 
 #include "id.hpp"
+#include "ordering.hpp"
 #include <type_traits>
 #include <tuple>
 #include <string_view>
 
 namespace ctre {
 	
-struct not_matched_tag_t { };
+//struct not_matched_tag_t { };
 
-static constexpr inline auto not_matched = not_matched_tag_t{};
+static constexpr inline auto not_matched = char{0};
 	
 template <size_t Id, typename Name = void> struct captured_content {
 	template <typename Iterator> struct storage {
 		Iterator _begin{};
 		Iterator _end{};
 		bool _matched{false};
+		char _ordering{7};
 	
 		using name = Name;
 	
 		constexpr CTRE_FORCE_INLINE storage() noexcept {}
+		constexpr CTRE_FORCE_INLINE storage(char o) noexcept : _matched(o & equal), _ordering(o) {}
 	
 		constexpr CTRE_FORCE_INLINE void matched() noexcept {
 			_matched = true;
@@ -51,6 +54,21 @@ template <size_t Id, typename Name = void> struct captured_content {
 			return _matched;
 		}
 		
+		constexpr CTRE_FORCE_INLINE explicit operator char() const noexcept {
+			return _ordering;
+		}
+
+		constexpr CTRE_FORCE_INLINE explicit operator partial_ordering() const noexcept {
+			if ( _ordering & equal ) return equal;
+			if ( _ordering & less ) return less;
+			if ( _ordering & greater ) return greater;
+			return unordered;
+		}
+
+		constexpr CTRE_FORCE_INLINE void mask_ordering(char m) noexcept {
+			_ordering &= m;
+		}
+		
 		constexpr CTRE_FORCE_INLINE auto to_view() const noexcept {
 			return std::basic_string_view{_begin, static_cast<size_t>(std::distance(_begin, _end))};
 		}
@@ -76,6 +94,7 @@ template <typename... Captures> struct captures;
 template <typename Head, typename... Tail> struct captures<Head, Tail...>: captures<Tail...> {
 	Head head;
 	constexpr CTRE_FORCE_INLINE captures() noexcept { }
+	constexpr CTRE_FORCE_INLINE captures(char o) noexcept : head(o) { }
 	template <size_t id> CTRE_FORCE_INLINE static constexpr bool exists() noexcept {
 		if constexpr (id == Head::get_id()) {
 			return true;
@@ -142,7 +161,7 @@ template <typename Iterator, typename... Captures> struct regex_results {
 	captures<captured_content<0>::template storage<Iterator>, typename Captures::template storage<Iterator>...> _captures;
 	
 	constexpr CTRE_FORCE_INLINE regex_results() noexcept { }
-	constexpr CTRE_FORCE_INLINE regex_results(not_matched_tag_t) noexcept { }
+	constexpr CTRE_FORCE_INLINE regex_results(char o) noexcept : _captures(o) { }
 	
 	// special constructor for deducting
 	constexpr CTRE_FORCE_INLINE regex_results(Iterator, ctll::list<Captures...>) noexcept { }
@@ -166,6 +185,15 @@ template <typename Iterator, typename... Captures> struct regex_results {
 	}
 	constexpr CTRE_FORCE_INLINE operator bool() const noexcept {
 		return bool(_captures.template select<0>());
+	}
+	constexpr CTRE_FORCE_INLINE explicit operator char() const noexcept {
+		return char(_captures.template select<0>());
+	}
+	constexpr CTRE_FORCE_INLINE explicit operator partial_ordering() const noexcept {
+		return partial_ordering(_captures.template select<0>());
+	}
+	constexpr CTRE_FORCE_INLINE void mask_ordering(char m) noexcept {
+		_captures.template select<0>().mask_ordering(m);
 	}
 	
 	using string_view_type = decltype(_captures.template select<0>().to_view());
